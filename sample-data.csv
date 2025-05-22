@@ -1,0 +1,6 @@
+Title,Content,Excerpt,Status,Category,Featured Image,Custom Field 1,Custom Field 2
+Sample Post 1,This is the content for sample post 1,A short excerpt for post 1,publish,Sample Category,https://example.com/image1.jpg,Value 1,123
+Sample Post 2,Content for the second sample post,Excerpt for post 2,draft,Another Category,https://example.com/image2.jpg,Value 2,456
+Sample Post 3,Here is some content for post 3,Short excerpt 3,publish,Sample Category,https://example.com/image3.jpg,Value 3,789
+Sample Post 4,Content for the fourth post in our sample,Excerpt number 4,draft,New Category,https://example.com/image4.jpg,Value 4,101
+Sample Post 5,The fifth post with some detailed content,A brief excerpt for post 5,publish,Another Category,https://example.com/image5.jpg,Value 5,112
