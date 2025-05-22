@@ -5,6 +5,82 @@
     margin: 20px 0;
 }
 
+/* CSV File Input Row */
+.csv-file-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    margin-bottom: 5px;
+}
+
+.csv-file-input {
+    flex: 1;
+}
+
+/* Custom File Drop Area */
+.csv-drop-area {
+    border: 2px dashed #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    background-color: #f9f9f9;
+    transition: all 0.3s ease;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.csv-drop-area.highlight {
+    border-color: #2271b1;
+    background-color: #f0f6fc;
+}
+
+.csv-drop-message {
+    width: 100%;
+}
+
+.csv-drop-message .dashicons {
+    font-size: 30px;
+    width: 30px;
+    height: 30px;
+    color: #646970;
+    margin-bottom: 10px;
+}
+
+.csv-drop-message p {
+    margin: 5px 0;
+    color: #646970;
+}
+
+.csv-or-text {
+    font-style: italic;
+    font-size: 12px;
+}
+
+#csv-browse-button {
+    margin: 10px auto;
+    display: inline-block;
+}
+
+.csv-file-name {
+    margin-top: 10px;
+    font-weight: 600;
+    word-break: break-all;
+    color: #2271b1;
+}
+
+.csv-separator-select {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.csv-separator-select label {
+    margin-bottom: 0;
+    font-weight: normal;
+}
+
 .csv-to-cpt-container {
     display: flex;
     flex-wrap: wrap;

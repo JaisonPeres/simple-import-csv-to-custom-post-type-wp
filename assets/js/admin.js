@@ -10,6 +10,11 @@ jQuery(document).ready(function($) {
     const $importResults = $('#import-results');
     const $importProgress = $('#import-progress');
     
+    // File drop area elements
+    const $dropArea = $('#csv-drop-area');
+    const $browseButton = $('#csv-browse-button');
+    const $fileName = $('#csv-file-name');
+    
     // Cache DOM elements for settings page
     const $settingsForm = $('#csv-to-cpt-settings-form');
     const $settingsMessage = $('#settings-message');
@@ -18,6 +23,7 @@ jQuery(document).ready(function($) {
     if ($form.length > 0) {
         // We're on the import page
         loadPostTypes();
+        initFileDropArea();
         
         // Event listeners for import page
         $previewBtn.on('click', handlePreviewClick);
@@ -25,6 +31,89 @@ jQuery(document).ready(function($) {
         $form.on('submit', handleFormSubmit);
         $(document).on('click', '#add-custom-default', addCustomDefaultField);
         $(document).on('click', '.remove-row', removeCustomDefaultField);
+    }
+    
+    /**
+     * Initialize the file drop area functionality
+     */
+    function initFileDropArea() {
+        // Click the hidden file input when the browse button is clicked
+        $browseButton.on('click', function() {
+            $csvFile.click();
+        });
+        
+        // Handle file selection via the file input
+        $csvFile.on('change', function() {
+            handleFileSelection(this.files);
+        });
+        
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            $dropArea.on(eventName, preventDefaults, false);
+        });
+        
+        // Highlight drop area when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            $dropArea.on(eventName, function() {
+                $dropArea.addClass('highlight');
+            });
+        });
+        
+        // Remove highlight when item is dragged out or dropped
+        ['dragleave', 'drop'].forEach(eventName => {
+            $dropArea.on(eventName, function() {
+                $dropArea.removeClass('highlight');
+            });
+        });
+        
+        // Handle dropped files
+        $dropArea.on('drop', function(e) {
+            const dt = e.originalEvent.dataTransfer;
+            const files = dt.files;
+            
+            // Manually set the file to the file input element
+            if (files.length > 0) {
+                try {
+                    // Try to use DataTransfer API (modern browsers)
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(files[0]);
+                    $csvFile[0].files = dataTransfer.files;
+                } catch (err) {
+                    // Fallback for browsers that don't support DataTransfer
+                    console.log('DataTransfer API not supported, using alternative approach');
+                    // Store the file in a global variable that we can access later
+                    window.droppedFile = files[0];
+                }
+            }
+            
+            handleFileSelection(files);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        function handleFileSelection(files) {
+            if (files.length) {
+                const file = files[0];
+                
+                // Check if it's a CSV file
+                if (file.name.toLowerCase().endsWith('.csv')) {
+                    // Update the file name display
+                    $fileName.text(file.name);
+                    
+                    // Enable preview button if post type is also selected
+                    if ($postType.val()) {
+                        $previewBtn.prop('disabled', false);
+                    }
+                } else {
+                    showError('Please select a CSV file');
+                    $csvFile.val('');
+                    $fileName.text('');
+                }
+            }
+        }
     }
     
     // Event listeners for settings page
@@ -82,7 +171,7 @@ jQuery(document).ready(function($) {
         }
         
         // If we have a CSV file and post type, enable preview button
-        if ($csvFile[0].files.length > 0) {
+        if ($csvFile[0].files.length > 0 || window.droppedFile) {
             $previewBtn.prop('disabled', false);
         }
     }
@@ -91,8 +180,16 @@ jQuery(document).ready(function($) {
      * Handle preview button click
      */
     function handlePreviewClick() {
-        const file = $csvFile[0].files[0];
+        // Get the file either from the input or from our global variable for dropped files
+        let file = $csvFile[0].files[0];
+        
+        // If no file in the input, check if we have a dropped file (for browsers without DataTransfer support)
+        if (!file && window.droppedFile) {
+            file = window.droppedFile;
+        }
+        
         const postType = $postType.val();
+        const separator = $('#csv_separator').val();
         
         if (!file || !postType) {
             showError('Please select both a CSV file and post type');
@@ -100,7 +197,7 @@ jQuery(document).ready(function($) {
         }
         
         // Parse CSV file
-        parseCSV(file, function(data) {
+        parseCSV(file, separator, function(data) {
             if (!data || !data.length) {
                 showError('Could not parse CSV file or file is empty');
                 return;
@@ -116,8 +213,11 @@ jQuery(document).ready(function($) {
     
     /**
      * Parse CSV file using FileReader
+     * @param {File} file - The CSV file to parse
+     * @param {string} separatorOption - The separator option selected by the user
+     * @param {Function} callback - Callback function to handle parsed data
      */
-    function parseCSV(file, callback) {
+    function parseCSV(file, separatorOption, callback) {
         const reader = new FileReader();
         
         reader.onload = function(e) {
@@ -133,18 +233,9 @@ jQuery(document).ready(function($) {
             
             const result = [];
             
-            // Detect delimiter - try to auto-detect if it's comma, semicolon, or tab
-            let delimiter = ',';
+            // Use the user-specified delimiter
+            let delimiter = separatorOption;
             const firstLine = lines[0];
-            const delimiters = [',', ';', '\t'];
-            const counts = {};
-            
-            delimiters.forEach(del => {
-                counts[del] = (firstLine.match(new RegExp(del, 'g')) || []).length;
-            });
-            
-            // Use the delimiter that appears most frequently
-            delimiter = delimiters.reduce((a, b) => counts[a] > counts[b] ? a : b);
             
             // Get headers - handle quoted values properly
             const headers = parseCSVLine(firstLine, delimiter);
@@ -199,27 +290,28 @@ jQuery(document).ready(function($) {
             if (char === '"') {
                 // Handle quotes
                 if (i + 1 < line.length && line[i + 1] === '"') {
-                    // Double quotes inside quotes - add a single quote
+                    // Escaped quote
                     currentValue += '"';
-                    i++;
+                    i += 2;
                 } else {
-                    // Toggle quote mode
+                    // Toggle quote state
                     inQuotes = !inQuotes;
+                    i++;
                 }
             } else if (char === delimiter && !inQuotes) {
-                // End of value
-                result.push(currentValue.trim());
+                // End of field
+                result.push(currentValue);
                 currentValue = '';
+                i++;
             } else {
-                // Add character to current value
+                // Regular character
                 currentValue += char;
+                i++;
             }
-            
-            i++;
         }
         
-        // Add the last value
-        result.push(currentValue.trim());
+        // Add the last field
+        result.push(currentValue);
         
         return result;
     }
@@ -238,15 +330,12 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success && response.data) {
-                    // Extract taxonomy fields from the response data
+                    // Check if we have taxonomy fields
                     const taxonomyFields = {};
-                    const otherFields = {};
                     
                     Object.keys(response.data).forEach(function(key) {
                         if (key.startsWith('tax_')) {
                             taxonomyFields[key] = response.data[key];
-                        } else {
-                            otherFields[key] = response.data[key];
                         }
                     });
                     
@@ -362,7 +451,14 @@ jQuery(document).ready(function($) {
     function handleFormSubmit(e) {
         e.preventDefault();
         
-        const file = $csvFile[0].files[0];
+        // Get the file either from the input or from our global variable for dropped files
+        let file = $csvFile[0].files[0];
+        
+        // If no file in the input, check if we have a dropped file (for browsers without DataTransfer support)
+        if (!file && window.droppedFile) {
+            file = window.droppedFile;
+        }
+        
         const postType = $postType.val();
         
         if (!file || !postType) {
@@ -434,6 +530,7 @@ jQuery(document).ready(function($) {
         // Prepare form data
         const formData = new FormData();
         formData.append('action', 'csv_to_cpt_process_import');
+        formData.append('csv_separator', $('#csv_separator').val());
         formData.append('nonce', csvToCptData.nonce);
         formData.append('csv_file', file);
         formData.append('post_type', postType);
@@ -475,31 +572,33 @@ jQuery(document).ready(function($) {
     function displayImportResults(data) {
         let html = '<div class="import-results-container">';
         
-        if (data.status === 'success') {
-            const results = data.results;
+        // Summary
+        html += '<div class="import-summary">';
+        html += '<h3>' + csvToCptData.importCompleteText + '</h3>';
+        html += '<p><strong>' + csvToCptData.totalRowsText + ':</strong> ' + data.total + '</p>';
+        html += '<p><strong>' + csvToCptData.createdText + ':</strong> ' + data.created + '</p>';
+        
+        if (data.updated > 0) {
+            html += '<p><strong>' + csvToCptData.updatedText + ':</strong> ' + data.updated + '</p>';
+        }
+        
+        if (data.skipped > 0) {
+            html += '<p><strong>' + csvToCptData.skippedText + ':</strong> ' + data.skipped + '</p>';
+        }
+        html += '</div>';
+        
+        // Errors if any
+        if (data.errors && data.errors.length > 0) {
+            html += '<div class="import-errors">';
+            html += '<h4>' + csvToCptData.errorsText + ':</h4>';
+            html += '<ul>';
             
-            html += '<h3>Import Completed</h3>';
-            html += '<div class="import-summary">';
-            html += '<p><strong>Total rows processed:</strong> ' + results.total + '</p>';
-            html += '<p><strong>Posts created:</strong> ' + results.created + '</p>';
-            html += '<p><strong>Posts updated:</strong> ' + results.updated + '</p>';
-            html += '<p><strong>Rows skipped:</strong> ' + results.skipped + '</p>';
+            data.errors.forEach(function(error) {
+                html += '<li>' + error + '</li>';
+            });
+            
+            html += '</ul>';
             html += '</div>';
-            
-            if (results.errors && results.errors.length) {
-                html += '<div class="import-errors">';
-                html += '<h4>Errors:</h4>';
-                html += '<ul>';
-                
-                results.errors.forEach(function(error) {
-                    html += '<li>' + error + '</li>';
-                });
-                
-                html += '</ul>';
-                html += '</div>';
-            }
-        } else {
-            html += '<div class="notice notice-error"><p>' + data.message + '</p></div>';
         }
         
         html += '</div>';
@@ -511,28 +610,31 @@ jQuery(document).ready(function($) {
      * Show error message
      */
     function showError(message) {
-        $importResults.html('<div class="notice notice-error"><p>' + message + '</p></div>').show();
+        alert(message);
     }
     
     /**
      * Add a new custom default field
      */
     function addCustomDefaultField() {
-        const customFieldHtml = `
+        const $container = $('#custom-defaults-container');
+        const rowIndex = $container.find('.custom-default-row').length;
+        
+        const $row = $(`
             <div class="custom-default-row">
                 <div class="field-name">
-                    <label>Field Name</label>
-                    <input type="text" placeholder="meta_key_name">
+                    <label for="custom_field_${rowIndex}">Field Name</label>
+                    <input type="text" id="custom_field_${rowIndex}" name="custom_field_name[]" placeholder="meta_key">
                 </div>
                 <div class="field-value">
-                    <label>Default Value</label>
-                    <input type="text" placeholder="Default value">
+                    <label for="custom_value_${rowIndex}">Value</label>
+                    <input type="text" id="custom_value_${rowIndex}" name="custom_field_value[]" placeholder="value">
                 </div>
-                <div class="remove-row" title="Remove">×</div>
+                <button type="button" class="button remove-row">×</button>
             </div>
-        `;
+        `);
         
-        $('#custom-defaults-container').append(customFieldHtml);
+        $container.append($row);
     }
     
     /**
@@ -642,17 +744,11 @@ jQuery(document).ready(function($) {
         formData.append('action', 'csv_to_cpt_save_settings');
         formData.append('nonce', csvToCptData.nonce);
         
-        // Get form values
-        const maxFileSize = $('#max_file_size').val();
-        const overwriteExisting = $('#overwrite_existing').is(':checked');
-        const deleteAfterImport = $('#delete_csv_after_import').is(':checked');
+        // Show loading state
+        const $submitButton = $(this).find('button[type="submit"]');
+        const originalText = $submitButton.text();
+        $submitButton.prop('disabled', true).text('Saving...');
         
-        // Add to form data
-        formData.append('max_file_size', maxFileSize);
-        formData.append('overwrite_existing', overwriteExisting ? '1' : '0');
-        formData.append('delete_csv_after_import', deleteAfterImport ? '1' : '0');
-        
-        // Submit the settings
         $.ajax({
             url: csvToCptData.ajaxUrl,
             type: 'POST',
@@ -660,9 +756,11 @@ jQuery(document).ready(function($) {
             processData: false,
             contentType: false,
             success: function(response) {
+                $submitButton.prop('disabled', false).text(originalText);
+                
                 if (response.success) {
                     $settingsMessage.removeClass('error')
-                        .html('<p>' + response.data.message + '</p>')
+                        .html('<p>' + response.data + '</p>')
                         .show();
                     
                     // Hide message after 3 seconds
@@ -671,11 +769,13 @@ jQuery(document).ready(function($) {
                     }, 3000);
                 } else {
                     $settingsMessage.addClass('error')
-                        .html('<p>Error: ' + (response.data || 'Unknown error') + '</p>')
+                        .html('<p>' + (response.data || 'Error saving settings') + '</p>')
                         .show();
                 }
             },
             error: function() {
+                $submitButton.prop('disabled', false).text(originalText);
+                
                 $settingsMessage.addClass('error')
                     .html('<p>Ajax error: Failed to save settings</p>')
                     .show();

@@ -467,10 +467,11 @@ class CSV_To_CPT_Importer {
             wp_send_json_error(__('Failed to save the uploaded file. Please check directory permissions.', 'csv-to-cpt-importer'));
         }
 
-        // Get post type and field mappings
+        // Get post type, field mappings, and CSV separator
         $post_type = sanitize_text_field($_POST['post_type']);
         $field_mappings = isset($_POST['field_mappings']) ? $_POST['field_mappings'] : array();
         $default_values = isset($_POST['default_values']) ? $_POST['default_values'] : array();
+        $csv_separator = isset($_POST['csv_separator']) ? sanitize_text_field($_POST['csv_separator']) : ',';
         
         // Decode JSON if needed
         if (is_string($field_mappings)) {
@@ -486,7 +487,7 @@ class CSV_To_CPT_Importer {
         }
 
         // Process the CSV file
-        $results = $this->process_csv_import($upload_path, $post_type, $field_mappings, $default_values);
+        $results = $this->process_csv_import($upload_path, $post_type, $field_mappings, $default_values, $csv_separator);
         
         // Delete the CSV file after import if setting is enabled
         if ($this->settings['delete_csv_after_import'] && file_exists($upload_path)) {
@@ -498,8 +499,15 @@ class CSV_To_CPT_Importer {
 
     /**
      * Process the CSV file and create/update posts
+     * 
+     * @param string $file_path Path to the CSV file
+     * @param string $post_type Post type to create/update
+     * @param array $field_mappings Mapping of CSV columns to post fields
+     * @param array $default_values Default values for fields not in CSV
+     * @param string $csv_separator The separator used in the CSV file (',', ';', '\t', '|')
+     * @return array Results of the import process
      */
-    private function process_csv_import($file_path, $post_type, $field_mappings, $default_values = array()) {
+    private function process_csv_import($file_path, $post_type, $field_mappings, $default_values = array(), $csv_separator = ',') {
         if (!file_exists($file_path)) {
             return array(
                 'status' => 'error',
@@ -524,8 +532,11 @@ class CSV_To_CPT_Importer {
             );
         }
 
-        // Get the header row
-        $header = fgetcsv($handle);
+        // Use the specified delimiter
+        $delimiter = $csv_separator;
+        
+        // Get the header row with the specified delimiter
+        $header = fgetcsv($handle, 0, $delimiter);
         if (!$header) {
             fclose($handle);
             return array(
@@ -534,9 +545,9 @@ class CSV_To_CPT_Importer {
             );
         }
 
-        // Process each row
+        // Process each row with the specified delimiter
         $row_number = 1; // Start at 1 because header is row 0
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
             $row_number++;
             $results['total']++;
             

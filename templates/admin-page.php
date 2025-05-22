@@ -8,8 +8,30 @@
             <form id="csv-to-cpt-form" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="csv_file"><?php _e('Select CSV File', 'csv-to-cpt-importer'); ?></label>
-                    <input type="file" name="csv_file" id="csv_file" accept=".csv" required>
-                    <p class="description"><?php _e('Upload a CSV file with headers in the first row.', 'csv-to-cpt-importer'); ?></p>
+                    <div class="csv-file-row">
+                        <div class="csv-file-input">
+                            <div id="csv-drop-area" class="csv-drop-area">
+                                <div class="csv-drop-message">
+                                    <span class="dashicons dashicons-upload"></span>
+                                    <p><?php _e('Drag & drop your CSV file here', 'csv-to-cpt-importer'); ?></p>
+                                    <p class="csv-or-text"><?php _e('or', 'csv-to-cpt-importer'); ?></p>
+                                    <button type="button" id="csv-browse-button" class="button"><?php _e('Browse Files', 'csv-to-cpt-importer'); ?></button>
+                                    <div id="csv-file-name" class="csv-file-name"></div>
+                                </div>
+                                <input type="file" name="csv_file" id="csv_file" accept=".csv" required style="display: none;">
+                            </div>
+                        </div>
+                        <div class="csv-separator-select">
+                            <label for="csv_separator"><?php _e('Separator:', 'csv-to-cpt-importer'); ?></label>
+                            <select name="csv_separator" id="csv_separator">
+                                <option value="," selected><?php _e('Comma (,)', 'csv-to-cpt-importer'); ?></option>
+                                <option value=";"><?php _e('Semicolon (;)', 'csv-to-cpt-importer'); ?></option>
+                                <option value="\t"><?php _e('Tab (\t)', 'csv-to-cpt-importer'); ?></option>
+                                <option value="|"><?php _e('Pipe (|)', 'csv-to-cpt-importer'); ?></option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="description"><?php _e('Upload a CSV file with headers in the first row. Select the delimiter used in your file.', 'csv-to-cpt-importer'); ?></p>
                 </div>
                 
                 <div class="form-group">
